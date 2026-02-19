@@ -1,0 +1,7 @@
+export { default as AdmissionsPage } from './pages/AdmissionsPage'
+export { default as AdmissionsListPage } from './pages/AdmissionsListPage'
+export { default as AdmissionFormPage } from './pages/AdmissionFormPage'
+export { default as AdmissionDetailPage } from './pages/AdmissionDetailPage'
+export { default as WardsPage } from './pages/WardsPage'
+export { default as WardFormPage } from './pages/WardFormPage'
+export { default as admissionsService } from './services/admissionsService'

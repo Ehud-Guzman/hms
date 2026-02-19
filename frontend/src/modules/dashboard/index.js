@@ -1,0 +1,5 @@
+export { default as DashboardPage } from './pages/Dashboard'
+export { default as dashboardService } from './services/dashboardService'
+export { default as StatsCard } from './components/StatsCard'
+export { default as ActivityFeed } from './components/ActivityFeed'
+export { default as QuickActions } from './components/QuickActions'

@@ -1,0 +1,6 @@
+export { default as AppointmentsPage } from './pages/AppointmentsPage'
+export { default as CalendarPage } from './pages/CalendarPage'
+export { default as WaitingListPage } from './pages/WaitingListPage'
+export { default as AppointmentDetailPage } from './pages/AppointmentDetailPage'
+export { default as AppointmentFormPage } from './pages/AppointmentFormPage'
+export { default as appointmentsService } from './services/appointmentsService'

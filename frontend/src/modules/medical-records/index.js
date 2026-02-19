@@ -1,0 +1,5 @@
+export { default as MedicalRecordsPage } from './pages/MedicalRecordsPage'
+export { default as PatientRecordsPage } from './pages/PatientRecordsPage'
+export { default as RecordFormPage } from './pages/RecordFormPage'
+export { default as RecordDetailPage } from './pages/RecordDetailPage'
+export { default as medicalRecordsService } from './services/medicalRecordsService'

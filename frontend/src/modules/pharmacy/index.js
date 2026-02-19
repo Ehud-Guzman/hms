@@ -1,0 +1,6 @@
+export { default as PharmacyPage } from './pages/PharmacyPage'
+export { default as InventoryPage } from './pages/InventoryPage'
+export { default as InventoryFormPage } from './pages/InventoryFormPage'
+export { default as PrescriptionsPage } from './pages/PrescriptionsPage'
+export { default as PrescriptionFormPage } from './pages/PrescriptionFormPage'
+export { default as pharmacyService } from './services/pharmacyService'

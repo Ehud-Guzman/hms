@@ -1,0 +1,5 @@
+export { default as VitalsPage } from './pages/VitalsPage'
+export { default as PatientVitalsPage } from './pages/PatientVitalsPage'
+export { default as RecordVitalsPage } from './pages/RecordVitalsPage'
+export { default as TriagePage } from './pages/TriagePage'
+export { default as vitalsService } from './services/vitalsService'

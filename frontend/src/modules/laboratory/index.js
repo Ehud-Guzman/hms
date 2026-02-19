@@ -1,0 +1,6 @@
+export { default as LaboratoryPage } from './pages/LaboratoryPage'
+export { default as TestsPage } from './pages/TestsPage'
+export { default as TestFormPage } from './pages/TestFormPage'
+export { default as OrdersPage } from './pages/OrdersPage'
+export { default as OrderFormPage } from './pages/OrderFormPage'
+export { default as laboratoryService } from './services/laboratoryService'
