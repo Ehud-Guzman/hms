@@ -110,69 +110,141 @@ export class BillingService {
       }
     }
 
-    return prisma.$transaction(async (tx) => {
-      // Create bill
-      const bill = await tx.bill.create({
-        data: {
-          billNumber,
-          patientId,
-          admissionId,
-          appointmentId,
-          status: 'DRAFT',
-          subtotal: totals.subtotal,
-          tax: totals.tax,
-          discount: totals.discount,
-          total: totals.total,
-          paid: 0,
-          balance: totals.total,
-          issuedAt: new Date(),
-          dueDate: finalDueDate,
-          hospitalId,
-          items: {
-            create: items.map(item => ({
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              amount: item.quantity * item.unitPrice,
-              type: item.type || 'OTHER',
-              referenceId: item.referenceId,
-              referenceType: item.referenceType
-            }))
-          }
-        },
-        include: {
-          patient: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              uhid: true
+return prisma.$transaction(async (tx) => {
+  let bill;
+
+  if (appointmentId) {
+    // Upsert ensures only one bill per appointment exists
+    bill = await tx.bill.upsert({
+      where: { appointmentId },
+      update: {
+        // Only update if status is DRAFT, otherwise throw error
+        ...(await tx.bill.findUnique({ where: { appointmentId } })).status === 'DRAFT'
+          ? {
+              subtotal: totals.subtotal,
+              tax: totals.tax,
+              discount: totals.discount,
+              total: totals.total,
+              balance: totals.total,
+              updatedAt: new Date(),
+              items: {
+                deleteMany: {}, // Remove old items
+                create: items.map(item => ({
+                  description: item.description,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  amount: item.quantity * item.unitPrice,
+                  type: item.type || 'OTHER',
+                  referenceId: item.referenceId,
+                  referenceType: item.referenceType
+                }))
+              }
             }
-          },
-          items: true
+          : undefined
+      },
+      create: {
+        billNumber,
+        patientId,
+        admissionId,
+        appointmentId,
+        status: 'DRAFT',
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: totals.discount,
+        total: totals.total,
+        paid: 0,
+        balance: totals.total,
+        issuedAt: new Date(),
+        dueDate: finalDueDate,
+        hospitalId,
+        items: {
+          create: items.map(item => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.quantity * item.unitPrice,
+            type: item.type || 'OTHER',
+            referenceId: item.referenceId,
+            referenceType: item.referenceType
+          }))
+        }
+      },
+      include: {
+        patient: {
+          select: { id: true, firstName: true, lastName: true, uhid: true }
+        },
+        items: true
+      }
+    });
+
+    // If bill already existed but wasn’t DRAFT, prevent overwriting
+    if (bill.status !== 'DRAFT' && bill.appointmentId === appointmentId) {
+      throw new Error("A finalized bill already exists for this appointment.");
+    }
+  } else {
+    // No appointmentId → normal create
+    bill = await tx.bill.create({
+      data: {
+        billNumber,
+        patientId,
+        admissionId,
+        appointmentId: null,
+        status: 'DRAFT',
+        subtotal: totals.subtotal,
+        tax: totals.tax,
+        discount: totals.discount,
+        total: totals.total,
+        paid: 0,
+        balance: totals.total,
+        issuedAt: new Date(),
+        dueDate: finalDueDate,
+        hospitalId,
+        items: {
+          create: items.map(item => ({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            amount: item.quantity * item.unitPrice,
+            type: item.type || 'OTHER',
+            referenceId: item.referenceId,
+            referenceType: item.referenceType
+          }))
+        }
+      },
+      include: {
+        patient: {
+          select: { id: true, firstName: true, lastName: true, uhid: true }
+        },
+        items: true
+      }
+    });
+  }
+
+  // Handle insurance claim if provider exists
+  if (insuranceProviderId) {
+    const existingClaim = await tx.insuranceClaim.findFirst({
+      where: { billId: bill.id }
+    });
+
+    if (!existingClaim) {
+      const coverage = calculateInsuranceCoverage(bill, { coverageTerms: {} });
+      await tx.insuranceClaim.create({
+        data: {
+          patientId,
+          billId: bill.id,
+          providerId: insuranceProviderId,
+          claimNumber: `CLM-${billNumber}`,
+          status: 'SUBMITTED',
+          submittedAmount: coverage.covered,
+          submittedAt: new Date(),
+          hospitalId
         }
       });
+    }
+  }
 
-      // Create insurance claim if provider specified
-      if (insuranceProviderId) {
-        const coverage = calculateInsuranceCoverage(bill, { coverageTerms: {} });
-
-        await tx.insuranceClaim.create({
-          data: {
-            patientId,
-            billId: bill.id,
-            providerId: insuranceProviderId,
-            claimNumber: `CLM-${billNumber}`,
-            status: 'SUBMITTED',
-            submittedAmount: coverage.covered,
-            submittedAt: new Date(),
-            hospitalId
-          }
-        });
-      }
-
-      return bill;
-    });
+  return bill;
+});
   }
 
   /**

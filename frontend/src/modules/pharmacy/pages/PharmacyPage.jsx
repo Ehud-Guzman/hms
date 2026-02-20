@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useTheme } from '../../../context/ThemeContext'
 import AppLayout from '../../../core/components/layout/AppLayout'
 import pharmacyService from '../pharmacyService'
+import { formatNumberWithCommas } from '../utils/utils'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts'
 
 const PharmacyPage = () => {
   const [stats, setStats] = useState(null)
@@ -29,6 +31,11 @@ const PharmacyPage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const chartColors = {
+    inventory: ['#4caf50', '#ff9800'], // green for total, orange for low stock
+    expiring: '#f44336' // red for expiring soon
   }
 
   const styles = {
@@ -87,6 +94,11 @@ const PharmacyPage = () => {
       fontSize: theme.fonts.sizes['2xl'],
       fontWeight: theme.fonts.weights.bold,
       color: theme.colors.gray[900]
+    },
+    chartContainer: {
+      width: '100%',
+      height: 200,
+      marginBottom: theme.spacing[6]
     },
     alertSection: {
       backgroundColor: `${theme.colors.warning.DEFAULT}10`,
@@ -167,6 +179,16 @@ const PharmacyPage = () => {
     )
   }
 
+  const inventoryData = [
+    { name: 'Low Stock', value: stats?.lowStock || 0 },
+    { name: 'Available', value: (stats?.totalItems || 0) - (stats?.lowStock || 0) }
+  ]
+
+  const expiringData = [
+    { name: 'Expiring Soon', value: stats?.expiringSoon || 0 },
+    { name: 'Good', value: (stats?.totalItems || 0) - (stats?.expiringSoon || 0) }
+  ]
+
   return (
     <AppLayout>
       <div style={styles.container}>
@@ -192,21 +214,23 @@ const PharmacyPage = () => {
         <div style={styles.statsGrid}>
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Total Items</div>
-            <div style={styles.statValue}>{stats?.totalItems || 0}</div>
+            <div style={styles.statValue}>{formatNumberWithCommas(stats?.totalItems || 0)}</div>
           </div>
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Total Value</div>
-            <div style={styles.statValue}>KES {(stats?.totalValue || 0) / 100}</div>
+            <div style={styles.statValue}>KES {formatNumberWithCommas(stats?.totalValue || 0)}</div>
           </div>
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Low Stock Items</div>
-            <div style={styles.statValue}>{stats?.lowStock || 0}</div>
+            <div style={styles.statValue}>{formatNumberWithCommas(stats?.lowStock || 0)}</div>
           </div>
           <div style={styles.statCard}>
             <div style={styles.statLabel}>Expiring Soon</div>
-            <div style={styles.statValue}>{stats?.expiringSoon || 0}</div>
+            <div style={styles.statValue}>{formatNumberWithCommas(stats?.expiringSoon || 0)}</div>
           </div>
         </div>
+
+
 
         {/* Alerts */}
         {alerts.length > 0 && (
@@ -216,7 +240,7 @@ const PharmacyPage = () => {
               {alerts.slice(0, 5).map(item => (
                 <div key={item.id} style={styles.alertItem}>
                   <span style={styles.alertName}>{item.genericName} ({item.brandName})</span>
-                  <span style={styles.alertStock}>{item.quantityInStock} left</span>
+                  <span style={styles.alertStock}>{formatNumberWithCommas(item.quantityInStock)} left</span>
                 </div>
               ))}
               {alerts.length > 5 && (
@@ -268,6 +292,43 @@ const PharmacyPage = () => {
             <div style={styles.actionDesc}>Check expiring medications</div>
           </div>
         </div>
+        {/* Inventory Pie Chart */}
+        <div style={styles.chartContainer}>
+          <ResponsiveContainer>
+            <PieChart>
+              <Pie
+                data={inventoryData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={60}
+                fill="#8884d8"
+                label
+              >
+                {inventoryData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={chartColors.inventory[index]} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => formatNumberWithCommas(value)} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        {/* Expiring Items Bar Chart */}
+        <div style={styles.chartContainer}>
+          <ResponsiveContainer>
+            <BarChart data={expiringData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip formatter={(value) => formatNumberWithCommas(value)} />
+              <Legend />
+              <Bar dataKey="value" fill={chartColors.expiring} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
       </div>
     </AppLayout>
   )

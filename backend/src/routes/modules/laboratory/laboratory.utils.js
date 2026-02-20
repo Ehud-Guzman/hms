@@ -1,8 +1,8 @@
 // backend/src/routes/modules/laboratory/laboratory.utils.js
 
 /**
- * Generate order number
- * Format: LAB-YYYYMMDD-XXXXX
+ * Generate a unique lab order number
+ * Format: HOSP-YYYYMMDD-XXXXX
  */
 export function generateOrderNumber(hospitalCode = "HOSP") {
   const date = new Date();
@@ -14,54 +14,46 @@ export function generateOrderNumber(hospitalCode = "HOSP") {
 }
 
 /**
- * Get priority color
+ * Get priority color for UI
  */
 export function getPriorityColor(priority) {
-  const colors = {
-    'ROUTINE': 'blue',
-    'URGENT': 'orange',
-    'STAT': 'red'
-  };
-  return colors[priority] || 'gray';
+  const map = { ROUTINE: 'blue', URGENT: 'orange', STAT: 'red' };
+  return map[priority] || 'gray';
 }
 
 /**
- * Get status color
+ * Get status color for UI
  */
 export function getStatusColor(status) {
-  const colors = {
-    'ORDERED': 'gray',
-    'COLLECTED': 'purple',
-    'PROCESSING': 'blue',
-    'COMPLETED': 'green',
-    'CANCELLED': 'red',
-    'REJECTED': 'darkred'
+  const map = {
+    ORDERED: 'gray',
+    COLLECTED: 'purple',
+    PROCESSING: 'blue',
+    COMPLETED: 'green',
+    CANCELLED: 'red',
+    REJECTED: 'darkred'
   };
-  return colors[status] || 'gray';
+  return map[status] || 'gray';
 }
 
 /**
- * Calculate turnaround time
+ * Calculate turnaround time in minutes
  */
 export function calculateTAT(orderedAt, completedAt) {
   if (!orderedAt || !completedAt) return null;
-  const ordered = new Date(orderedAt);
-  const completed = new Date(completedAt);
-  const minutes = Math.round((completed - ordered) / 60000);
+  const minutes = Math.round((new Date(completedAt) - new Date(orderedAt)) / 60000);
   return minutes;
 }
 
 /**
- * Check if result is abnormal based on reference ranges
+ * Check if value is abnormal based on reference ranges
  */
 export function isAbnormal(value, referenceRanges, gender, age) {
-  if (!referenceRanges || value === null || value === undefined) return false;
+  if (value === null || value === undefined || !referenceRanges) return false;
   
-  // Find appropriate range based on gender/age
   let range = referenceRanges;
-  
+
   if (Array.isArray(referenceRanges)) {
-    // Find range matching patient demographics
     range = referenceRanges.find(r => {
       if (r.gender && r.gender !== gender) return false;
       if (r.ageMin && age < r.ageMin) return false;
@@ -69,15 +61,15 @@ export function isAbnormal(value, referenceRanges, gender, age) {
       return true;
     });
   }
-  
+
   if (!range) return false;
-  
+
   const numValue = parseFloat(value);
   if (isNaN(numValue)) return false;
-  
+
   if (range.min !== undefined && numValue < range.min) return true;
   if (range.max !== undefined && numValue > range.max) return true;
-  
+
   return false;
 }
 
@@ -86,224 +78,154 @@ export function isAbnormal(value, referenceRanges, gender, age) {
  */
 export function formatTestResult(result, test) {
   if (!result) return null;
+  const formatted = { ...result };
   
-  const formatted = {
-    id: result.id,
-    orderId: result.orderId,
-    resultData: result.resultData,
-    reportFile: result.reportFile,
-    notes: result.notes,
-    isAbnormal: result.isAbnormal,
-    criticalFlags: result.criticalFlags,
-    verifiedBy: result.verifiedBy,
-    verifiedAt: result.verifiedAt,
-    createdAt: result.createdAt
-  };
-  
-  // Add test info if available
   if (test) {
     formatted.testName = test.name;
     formatted.testCode = test.code;
     formatted.category = test.category;
     formatted.referenceRanges = test.referenceRanges;
   }
-  
+
   return formatted;
 }
 
 /**
- * Parse CSV/Excel result data
+ * Parse CSV or JSON lab result data
  */
-export function parseResultData(rawData, testParameters) {
+export function parseResultData(rawData) {
   try {
-    // If it's already an object
-    if (typeof rawData === 'object' && !Array.isArray(rawData)) {
-      return rawData;
-    }
-    
-    // If it's a JSON string
+    if (!rawData) return {};
+
+    if (typeof rawData === 'object' && !Array.isArray(rawData)) return rawData;
+
     if (typeof rawData === 'string') {
       try {
         return JSON.parse(rawData);
       } catch {
-        // Not JSON, try CSV format
+        // fallback to CSV parsing
+        if (rawData.includes(',')) {
+          const lines = rawData.split('\n');
+          const result = {};
+          lines.forEach(line => {
+            const [param, value, unit] = line.split(',').map(s => s.trim());
+            if (param && value) result[param] = { value, unit: unit || '' };
+          });
+          return result;
+        }
       }
     }
-    
-    // Parse CSV format: "parameter,value,unit"
-    if (typeof rawData === 'string' && rawData.includes(',')) {
-      const lines = rawData.split('\n');
-      const result = {};
-      
-      lines.forEach(line => {
-        const [param, value, unit] = line.split(',').map(s => s.trim());
-        if (param && value) {
-          result[param] = {
-            value,
-            unit: unit || ''
-          };
-        }
-      });
-      
-      return result;
-    }
-    
+
     return {};
-  } catch (error) {
-    console.error("Error parsing result data:", error);
+  } catch (err) {
+    console.error("Error parsing result data:", err);
     return {};
   }
 }
 
 /**
- * Validate test parameters against order
+ * Validate test parameters against test definition
  */
 export function validateTestParameters(parameters, test) {
-  if (!test.parameters) return { valid: true, errors: [] };
-  
-  const errors = [];
-  const testParams = typeof test.parameters === 'string' 
-    ? JSON.parse(test.parameters) 
-    : test.parameters;
-  
-  if (!testParams || !Array.isArray(testParams)) {
-    return { valid: true, errors: [] };
+  if (!test?.parameters) return { valid: true, errors: [] };
+
+  let testParams = test.parameters;
+  if (typeof test.parameters === 'string') {
+    try { testParams = JSON.parse(test.parameters); } catch { testParams = []; }
   }
-  
-  const requiredParams = testParams.filter(p => p.required).map(p => p.name);
-  
-  requiredParams.forEach(param => {
-    if (!parameters[param] && !parameters[param]?.value) {
-      errors.push(`Missing required parameter: ${param}`);
+
+  if (!Array.isArray(testParams)) return { valid: true, errors: [] };
+
+  const errors = [];
+  testParams.filter(p => p.required).forEach(p => {
+    if (!parameters?.[p.name]?.value && parameters?.[p.name] === undefined) {
+      errors.push(`Missing required parameter: ${p.name}`);
     }
   });
-  
-  return {
-    valid: errors.length === 0,
-    errors
-  };
+
+  return { valid: errors.length === 0, errors };
 }
 
 /**
  * Generate barcode for sample
  */
 export function generateSampleBarcode(orderNumber, testCode) {
-  const timestamp = Date.now().toString(36);
-  return `${orderNumber}-${testCode}-${timestamp}`.toUpperCase();
-}
-
-/**
- * Get sample type options
- */
-export function getSampleTypes() {
-  return [
-    'Blood',
-    'Urine',
-    'Stool',
-    'Sputum',
-    'Swab',
-    'Tissue',
-    'CSF',
-    'Fluid',
-    'Other'
-  ];
+  const ts = Date.now().toString(36);
+  return `${orderNumber}-${testCode}-${ts}`.toUpperCase();
 }
 
 /**
  * Calculate age from DOB
  */
 export function calculateAge(dob) {
+  if (!dob) return null;
   const diff = Date.now() - new Date(dob).getTime();
-  const ageDate = new Date(diff);
-  return Math.abs(ageDate.getUTCFullYear() - 1970);
+  return Math.abs(new Date(diff).getUTCFullYear() - 1970);
 }
 
 /**
- * Format critical flag
+ * Format critical flag for test values
  */
 export function formatCriticalFlag(value, range) {
-  if (!range) return null;
-  
+  if (!range || value === null || value === undefined) return null;
   const numValue = parseFloat(value);
   if (isNaN(numValue)) return null;
-  
-  if (range.criticalLow !== undefined && numValue <= range.criticalLow) {
-    return {
-      level: 'CRITICAL_LOW',
-      message: `Value ${value} is critically low (≤ ${range.criticalLow})`
-    };
-  }
-  
-  if (range.criticalHigh !== undefined && numValue >= range.criticalHigh) {
-    return {
-      level: 'CRITICAL_HIGH',
-      message: `Value ${value} is critically high (≥ ${range.criticalHigh})`
-    };
-  }
-  
+
+  if (range.criticalLow !== undefined && numValue <= range.criticalLow)
+    return { level: 'CRITICAL_LOW', message: `Value ${value} is critically low (≤ ${range.criticalLow})` };
+
+  if (range.criticalHigh !== undefined && numValue >= range.criticalHigh)
+    return { level: 'CRITICAL_HIGH', message: `Value ${value} is critically high (≥ ${range.criticalHigh})` };
+
   return null;
 }
 
 /**
  * Group orders by status
  */
-export function groupOrdersByStatus(orders) {
-  return orders.reduce((acc, order) => {
-    acc[order.status] = (acc[order.status] || 0) + 1;
-    return acc;
-  }, {});
+export function groupOrdersByStatus(orders = []) {
+  return orders.reduce((acc, o) => { acc[o.status] = (acc[o.status] || 0) + 1; return acc; }, {});
 }
 
 /**
- * Generate offline ID
+ * Generate offline ID for syncing
  */
 export function generateOfflineId() {
-  return `offline_lab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `offline_lab_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
 /**
  * Validate date range
  */
 export function validateDateRange(startDate, endDate, maxDays = 90) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diffDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
-  
-  return {
-    valid: diffDays <= maxDays,
-    diffDays,
-    maxDays,
-    message: diffDays > maxDays ? `Date range cannot exceed ${maxDays} days` : null
-  };
+  if (!startDate || !endDate) return { valid: false, message: "Dates are required" };
+  const diff = Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+  return { valid: diff <= maxDays, diffDays: diff, maxDays, message: diff > maxDays ? `Date range cannot exceed ${maxDays} days` : null };
 }
 
 /**
- * Parse reference ranges from string/JSON
+ * Parse reference ranges from string or object
  */
 export function parseReferenceRanges(ranges) {
   if (!ranges) return null;
-  
   if (typeof ranges === 'object') return ranges;
-  
+
   try {
-    if (typeof ranges === 'string') {
-      return JSON.parse(ranges);
-    }
+    return JSON.parse(ranges);
   } catch {
-    // If not JSON, try simple format: "min-max" or ">value" or "<value"
-    const strRanges = String(ranges);
-    const ranges_obj = {};
-    
-    // Parse multiple lines
-    strRanges.split('\n').forEach(line => {
+    const lines = String(ranges).split('\n');
+    const obj = {};
+    lines.forEach(line => {
       const [key, value] = line.split(':').map(s => s.trim());
-      if (key && value) {
-        ranges_obj[key] = value;
-      }
+      if (key && value) obj[key] = value;
     });
-    
-    return ranges_obj;
+    return obj;
   }
-  
-  return null;
+}
+
+/**
+ * Return sample type options
+ */
+export function getSampleTypes() {
+  return ['Blood', 'Urine', 'Stool', 'Sputum', 'Swab', 'Tissue', 'CSF', 'Fluid', 'Other'];
 }

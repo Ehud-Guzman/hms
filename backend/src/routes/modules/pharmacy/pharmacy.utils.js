@@ -43,6 +43,13 @@ export function calculateInventoryValue(items) {
 }
 
 /**
+ * Calculate total value of inventory (formatted with commas)
+ */
+export function calculateInventoryValueFormatted(items) {
+  return formatNumberWithCommas(calculateInventoryValue(items));
+}
+
+/**
  * Format medicine name for display
  */
 export function formatMedicineName(item) {
@@ -59,7 +66,6 @@ export function formatMedicineName(item) {
  */
 export function isValidBatchNo(batchNo) {
   if (!batchNo) return false;
-  // Alphanumeric, dashes, underscores, 3-20 chars
   const re = /^[A-Z0-9_-]{3,20}$/i;
   return re.test(batchNo);
 }
@@ -72,23 +78,14 @@ export function parseInstructions(instructions) {
   
   const parsed = {};
   
-  // Parse dosage (e.g., "1 tablet", "2 capsules")
   const dosageMatch = instructions.match(/(\d+)\s*(tablet|cap|capsule|ml|mg|g|puff|drop)s?/i);
-  if (dosageMatch) {
-    parsed.dosage = dosageMatch[0];
-  }
+  if (dosageMatch) parsed.dosage = dosageMatch[0];
   
-  // Parse frequency (e.g., "twice daily", "every 8 hours")
   const frequencyMatch = instructions.match(/(once|twice|thrice|\d+ times?)\s*(daily|day|per day|every\s*\d+\s*hours?)/i);
-  if (frequencyMatch) {
-    parsed.frequency = frequencyMatch[0];
-  }
+  if (frequencyMatch) parsed.frequency = frequencyMatch[0];
   
-  // Parse duration (e.g., "for 7 days", "for 2 weeks")
   const durationMatch = instructions.match(/for\s*(\d+)\s*(day|week|month)s?/i);
-  if (durationMatch) {
-    parsed.duration = durationMatch[0];
-  }
+  if (durationMatch) parsed.duration = durationMatch[0];
   
   return parsed;
 }
@@ -112,6 +109,13 @@ export function calculatePrescriptionCost(items) {
 }
 
 /**
+ * Calculate total prescription cost (formatted with commas)
+ */
+export function calculatePrescriptionCostFormatted(items) {
+  return formatNumberWithCommas(calculatePrescriptionCost(items));
+}
+
+/**
  * Check for drug interactions (simplified)
  */
 export function checkInteractions(medications, interactionDatabase = []) {
@@ -119,12 +123,10 @@ export function checkInteractions(medications, interactionDatabase = []) {
   
   for (let i = 0; i < medications.length; i++) {
     for (let j = i + 1; j < medications.length; j++) {
-      // Check if this pair has known interaction
       const interaction = interactionDatabase.find(int => 
         (int.drug1 === medications[i] && int.drug2 === medications[j]) ||
         (int.drug1 === medications[j] && int.drug2 === medications[i])
       );
-      
       if (interaction) {
         warnings.push({
           drugs: [medications[i], medications[j]],
@@ -187,4 +189,12 @@ export function calculateDaysSupply(quantity, dosagePerDay) {
  */
 export function generateOfflineId() {
   return `offline_pharm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Format numbers with commas (e.g., 1000000 -> 1,000,000)
+ */
+export function formatNumberWithCommas(value) {
+  if (value == null || isNaN(value)) return '0';
+  return new Intl.NumberFormat('en-KE').format(value);
 }

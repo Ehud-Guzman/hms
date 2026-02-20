@@ -55,6 +55,7 @@ import TestsPage from "./modules/laboratory/pages/TestsPage";
 import TestFormPage from "./modules/laboratory/pages/TestFormPage";
 import OrdersPage from "./modules/laboratory/pages/OrdersPage";
 import OrderFormPage from "./modules/laboratory/pages/OrderFormPage";
+import ResultsPage from "./modules/laboratory/pages/ResultsPage";
 
 // ==============================
 // VITALS MODULE
@@ -121,344 +122,107 @@ const ROLES = {
 };
 
 // ==============================
-// ROUTE MAP
+// ROUTES CONFIGURATION
 // ==============================
 const ROUTES = [
+  // Public Routes
   { path: "/login", element: <Login />, public: true },
   { path: "/unauthorized", element: <UnauthorizedPage />, public: true },
 
   // Dashboard
-  {
-    path: "/",
-    element: <Dashboard />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/dashboard",
-    element: <Dashboard />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
+  { path: "/", element: <Dashboard />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/dashboard", element: <Dashboard />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
 
   // Patients
-  {
-    path: "/patients",
-    element: <PatientsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/patients/new",
-    element: <PatientFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
-  {
-    path: "/patients/:id",
-    element: <PatientDetailPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/patients/:id/edit",
-    element: <PatientFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
+  { path: "/patients", element: <PatientsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/patients/new", element: <PatientFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
+  { path: "/patients/:id", element: <PatientDetailPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/patients/:id/edit", element: <PatientFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
 
   // Doctors
   { path: "/doctors", element: <DoctorsPage />, roles: [...ROLES.ADMIN] },
-  {
-    path: "/doctors/new",
-    element: <DoctorFormPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/doctors/:id",
-    element: <DoctorDetailPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/doctors/:id/edit",
-    element: <DoctorFormPage />,
-    roles: [...ROLES.ADMIN],
-  },
+  { path: "/doctors/new", element: <DoctorFormPage />, roles: [...ROLES.ADMIN] },
+  { path: "/doctors/:id", element: <DoctorDetailPage />, roles: [...ROLES.ADMIN] },
+  { path: "/doctors/:id/edit", element: <DoctorFormPage />, roles: [...ROLES.ADMIN] },
 
   // Appointments
-  {
-    path: "/appointments",
-    element: <AppointmentsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/appointments/calendar",
-    element: <CalendarPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
-  {
-    path: "/appointments/waiting",
-    element: <WaitingListPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.RECEPTION],
-  },
-  {
-    path: "/appointments/new",
-    element: <AppointmentFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
-  {
-    path: "/appointments/:id",
-    element: <AppointmentDetailPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/appointments/:id/edit",
-    element: <AppointmentFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
+  { path: "/appointments", element: <AppointmentsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/appointments/calendar", element: <CalendarPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
+  { path: "/appointments/waiting", element: <WaitingListPage />, roles: [...ROLES.ADMIN, ...ROLES.RECEPTION] },
+  { path: "/appointments/new", element: <AppointmentFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
+  { path: "/appointments/:id", element: <AppointmentDetailPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/appointments/:id/edit", element: <AppointmentFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
 
   // Pharmacy
-  {
-    path: "/pharmacy",
-    element: <PharmacyPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.PHARMACY],
-  },
-  {
-    path: "/pharmacy/inventory",
-    element: <InventoryPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.PHARMACY],
-  },
-  {
-    path: "/pharmacy/inventory/new",
-    element: <InventoryFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.PHARMACY],
-  },
-  {
-    path: "/pharmacy/inventory/:id/edit",
-    element: <InventoryFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.PHARMACY],
-  },
-  {
-    path: "/pharmacy/prescriptions",
-    element: <PrescriptionsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.PHARMACY],
-  },
-  {
-    path: "/pharmacy/prescriptions/new",
-    element: <PrescriptionFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.PHARMACY],
-  },
+  { path: "/pharmacy", element: <PharmacyPage />, roles: [...ROLES.ADMIN, ...ROLES.PHARMACY] },
+  { path: "/pharmacy/inventory", element: <InventoryPage />, roles: [...ROLES.ADMIN, ...ROLES.PHARMACY] },
+  { path: "/pharmacy/inventory/new", element: <InventoryFormPage />, roles: [...ROLES.ADMIN, ...ROLES.PHARMACY] },
+  { path: "/pharmacy/inventory/:id/edit", element: <InventoryFormPage />, roles: [...ROLES.ADMIN, ...ROLES.PHARMACY] },
+  { path: "/pharmacy/prescriptions", element: <PrescriptionsPage />, roles: [...ROLES.ADMIN, ...ROLES.PHARMACY] },
+  { path: "/pharmacy/prescriptions/new", element: <PrescriptionFormPage />, roles: [...ROLES.ADMIN, ...ROLES.PHARMACY] },
 
-  // Lab
+  // Laboratory
+  { path: "/laboratory", element: <LaboratoryPage />, roles: [...ROLES.ADMIN, ...ROLES.LAB] },
+  { path: "/laboratory/tests", element: <TestsPage />, roles: [...ROLES.ADMIN, ...ROLES.LAB] },
+  { path: "/laboratory/tests/new", element: <TestFormPage />, roles: [...ROLES.ADMIN, ...ROLES.LAB] },
+  { path: "/laboratory/tests/:id/edit", element: <TestFormPage />, roles: [...ROLES.ADMIN, ...ROLES.LAB] },
+  { path: "/laboratory/orders", element: <OrdersPage />, roles: [...ROLES.ADMIN, ...ROLES.LAB] },
+  { path: "/laboratory/orders/new", element: <OrderFormPage />, roles: [...ROLES.ADMIN, ...ROLES.LAB] },
   {
-    path: "/laboratory",
-    element: <LaboratoryPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.LAB],
-  },
-  {
-    path: "/laboratory/tests",
-    element: <TestsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.LAB],
-  },
-  {
-    path: "/laboratory/tests/new",
-    element: <TestFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.LAB],
-  },
-  {
-    path: "/laboratory/tests/:id/edit",
-    element: <TestFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.LAB],
-  },
-  {
-    path: "/laboratory/orders",
-    element: <OrdersPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.LAB],
-  },
-  {
-    path: "/laboratory/orders/new",
-    element: <OrderFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.LAB],
-  },
+  path: "/laboratory/results",
+  element: <ResultsPage />,
+  roles: [...ROLES.ADMIN, ...ROLES.LAB],
+},
 
-// Vitals
-{
-  path: "/vitals",
-  element: <VitalsPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-},
-{
-  path: "/vitals/triage",
-  element: <TriagePage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-},
-{
-  path: "/vitals/record",
-  element: <RecordVitalsPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-},
-{
-  path: "/vitals/patient/:patientId",
-  element: <PatientVitalsPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-},
+
+  // Vitals
+  { path: "/vitals", element: <VitalsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/vitals/triage", element: <TriagePage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/vitals/record", element: <RecordVitalsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/vitals/patient/:patientId", element: <PatientVitalsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
 
   // Billing
-  {
-    path: "/billing",
-    element: <BillingPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/invoices",
-    element: <InvoicesPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/invoices/new",
-    element: <InvoiceFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/invoices/:id",
-    element: <InvoiceDetailPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/invoices/:id/edit",
-    element: <InvoiceFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/payments",
-    element: <PaymentsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/payments/new",
-    element: <PaymentFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
-  {
-    path: "/billing/payments/:id",
-    element: <PaymentDetailPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.BILLING],
-  },
+  { path: "/billing", element: <BillingPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/invoices", element: <InvoicesPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/invoices/new", element: <InvoiceFormPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/invoices/:id", element: <InvoiceDetailPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/invoices/:id/edit", element: <InvoiceFormPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/payments", element: <PaymentsPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/payments/new", element: <PaymentFormPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
+  { path: "/billing/payments/:id", element: <PaymentDetailPage />, roles: [...ROLES.ADMIN, ...ROLES.BILLING] },
 
- // Admissions
-{
-  path: "/admissions",
-  element: <AdmissionsPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION],
-},
-{
-  path: "/admissions/list",
-  element: <AdmissionsListPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION],
-},
-{
-  path: "/admissions/new",
-  element: <AdmissionFormPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-},
-{
-  path: "/admissions/:id",
-  element: <AdmissionDetailPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION],
-},
-{
-  path: "/admissions/:id/edit",
-  element: <AdmissionFormPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-},
-{
-  path: "/admissions/wards",
-  element: <WardsPage />,
-  roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION],
-},
-{
-  path: "/admissions/wards/new",
-  element: <WardFormPage />,
-  roles: [...ROLES.ADMIN], // ward management usually admin only
-},
-{
-  path: "/admissions/wards/:id/edit",
-  element: <WardFormPage />,
-  roles: [...ROLES.ADMIN],
-},
+  // Admissions
+  { path: "/admissions", element: <AdmissionsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION] },
+  { path: "/admissions/list", element: <AdmissionsListPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION] },
+  { path: "/admissions/new", element: <AdmissionFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/admissions/:id", element: <AdmissionDetailPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION] },
+  { path: "/admissions/:id/edit", element: <AdmissionFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/admissions/wards", element: <WardsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE, ...ROLES.RECEPTION] },
+  { path: "/admissions/wards/new", element: <WardFormPage />, roles: [...ROLES.ADMIN] },
+  { path: "/admissions/wards/:id/edit", element: <WardFormPage />, roles: [...ROLES.ADMIN] },
 
   // Medical Records
-  {
-    path: "/medical-records",
-    element: <MedicalRecordsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
-  {
-    path: "/medical-records/patient/:patientId",
-    element: <PatientRecordsPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/medical-records/patient/:patientId/new",
-    element: <RecordFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
-  {
-    path: "/medical-records/:id",
-    element: <RecordDetailPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE],
-  },
-  {
-    path: "/medical-records/:id/edit",
-    element: <RecordFormPage />,
-    roles: [...ROLES.ADMIN, ...ROLES.DOCTOR],
-  },
+  { path: "/medical-records", element: <MedicalRecordsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
+  { path: "/medical-records/patient/:patientId", element: <PatientRecordsPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/medical-records/patient/:patientId/new", element: <RecordFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
+  { path: "/medical-records/:id", element: <RecordDetailPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR, ...ROLES.NURSE] },
+  { path: "/medical-records/:id/edit", element: <RecordFormPage />, roles: [...ROLES.ADMIN, ...ROLES.DOCTOR] },
 
   // Settings
   { path: "/settings", element: <SettingsPage />, roles: [...ROLES.ADMIN] },
-  {
-    path: "/settings/general",
-    element: <GeneralPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/branding",
-    element: <BrandingPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/hours",
-    element: <BusinessHoursPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/notifications",
-    element: <NotificationsPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/features",
-    element: <FeaturesPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/backup",
-    element: <BackupPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/security",
-    element: <SecurityPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/integrations",
-    element: <IntegrationsPage />,
-    roles: [...ROLES.ADMIN],
-  },
-  {
-    path: "/settings/audit-logs",
-    element: <AuditLogsPage />,
-    roles: [...ROLES.ADMIN],
-  },
+  { path: "/settings/general", element: <GeneralPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/branding", element: <BrandingPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/hours", element: <BusinessHoursPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/notifications", element: <NotificationsPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/features", element: <FeaturesPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/backup", element: <BackupPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/security", element: <SecurityPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/integrations", element: <IntegrationsPage />, roles: [...ROLES.ADMIN] },
+  { path: "/settings/audit-logs", element: <AuditLogsPage />, roles: [...ROLES.ADMIN] },
 ];
 
 // ==============================
-// APP
+// APP COMPONENT
 // ==============================
 export default function App() {
   return (
@@ -466,21 +230,21 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {ROUTES.map((r) =>
-              r.public ? (
-                <Route key={r.path} path={r.path} element={r.element} />
-              ) : (
-                <Route
-                  key={r.path}
-                  path={r.path}
-                  element={
-                    <ProtectedRoute requiredRoles={r.roles}>
-                      {r.element}
+            {ROUTES.map((route) => (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={
+                  route.public ? (
+                    route.element
+                  ) : (
+                    <ProtectedRoute requiredRoles={route.roles}>
+                      {route.element}
                     </ProtectedRoute>
-                  }
-                />
-              ),
-            )}
+                  )
+                }
+              />
+            ))}
           </Routes>
           <SyncIndicator />
         </BrowserRouter>

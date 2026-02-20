@@ -1,61 +1,72 @@
 // backend/src/routes/modules/billing/billing.utils.js
 
+const DEFAULT_TAX_RATE = 0.16;
+const DEFAULT_CURRENCY = 'KES';
+
 /**
  * Generate bill number
- * Format: INV-YYYYMMDD-XXXXX
+ * Format: HOSP-YYYYMMDD-XXXXX
  */
 export function generateBillNumber(hospitalCode = "HOSP") {
   const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const formatted = date.toISOString().slice(0, 10).replace(/-/g, "");
   const random = Math.floor(Math.random() * 90000) + 10000;
-  return `${hospitalCode}-${year}${month}${day}-${random}`;
+  return `${hospitalCode}-${formatted}-${random}`;
 }
 
 /**
  * Generate receipt number
- * Format: RCP-YYYYMMDD-XXXXX
  */
 export function generateReceiptNumber(hospitalCode = "HOSP") {
   const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const formatted = date.toISOString().slice(0, 10).replace(/-/g, "");
   const random = Math.floor(Math.random() * 90000) + 10000;
-  return `${hospitalCode}-${year}${month}${day}-${random}`;
+  return `${hospitalCode}-${formatted}-${random}`;
+}
+
+/**
+ * Safe rounding (2 decimal precision)
+ */
+function round(amount) {
+  return Math.round((Number(amount) + Number.EPSILON) * 100) / 100;
 }
 
 /**
  * Calculate tax amount
  */
-export function calculateTax(subtotal, taxRate = 0.16) {
-  return Math.round(subtotal * taxRate);
+export function calculateTax(subtotal, taxRate = DEFAULT_TAX_RATE) {
+  return round(subtotal * taxRate);
 }
 
 /**
  * Calculate discount amount
  */
-export function calculateDiscount(subtotal, discountRate) {
-  return Math.round(subtotal * (discountRate / 100));
+export function calculateDiscount(subtotal, discountRate = 0) {
+  return round(subtotal * (discountRate / 100));
 }
 
 /**
- * Calculate bill totals
+ * Calculate bill totals (financially consistent)
  */
-export function calculateBillTotals(items, taxRate = 0.16, discountRate = 0) {
-  const subtotal = items.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+export function calculateBillTotals(items, taxRate = DEFAULT_TAX_RATE, discountRate = 0) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { subtotal: 0, discount: 0, tax: 0, total: 0 };
+  }
+
+  const subtotal = round(
+    items.reduce((sum, item) => {
+      const quantity = Number(item.quantity) || 0;
+      const unitPrice = Number(item.unitPrice) || 0;
+      return sum + (quantity * unitPrice);
+    }, 0)
+  );
+
   const discount = calculateDiscount(subtotal, discountRate);
-  const taxable = subtotal - discount;
+  const taxable = round(subtotal - discount);
   const tax = calculateTax(taxable, taxRate);
-  const total = taxable + tax;
-  
-  return {
-    subtotal,
-    discount,
-    tax,
-    total
-  };
+  const total = round(taxable + tax);
+
+  return { subtotal, discount, tax, total };
 }
 
 /**
@@ -63,12 +74,12 @@ export function calculateBillTotals(items, taxRate = 0.16, discountRate = 0) {
  */
 export function getStatusColor(status) {
   const colors = {
-    'DRAFT': 'gray',
-    'ISSUED': 'blue',
-    'PARTIALLY_PAID': 'orange',
-    'PAID': 'green',
-    'VOID': 'red',
-    'WRITTEN_OFF': 'darkred'
+    DRAFT: 'gray',
+    ISSUED: 'blue',
+    PARTIALLY_PAID: 'orange',
+    PAID: 'green',
+    VOID: 'red',
+    WRITTEN_OFF: 'darkred'
   };
   return colors[status] || 'gray';
 }
@@ -78,13 +89,13 @@ export function getStatusColor(status) {
  */
 export function getPaymentMethodName(method) {
   const methods = {
-    'CASH': 'Cash',
-    'CARD': 'Card',
-    'MPESA': 'M-Pesa',
-    'BANK_TRANSFER': 'Bank Transfer',
-    'CHEQUE': 'Cheque',
-    'INSURANCE': 'Insurance',
-    'OTHER': 'Other'
+    CASH: 'Cash',
+    CARD: 'Card',
+    MPESA: 'M-Pesa',
+    BANK_TRANSFER: 'Bank Transfer',
+    CHEQUE: 'Cheque',
+    INSURANCE: 'Insurance',
+    OTHER: 'Other'
   };
   return methods[method] || method;
 }
@@ -92,11 +103,11 @@ export function getPaymentMethodName(method) {
 /**
  * Format currency
  */
-export function formatCurrency(amount, currency = 'KES') {
+export function formatCurrency(amount, currency = DEFAULT_CURRENCY) {
   return new Intl.NumberFormat('en-KE', {
     style: 'currency',
     currency
-  }).format(amount ); 
+  }).format(round(amount));
 }
 
 /**
@@ -104,7 +115,7 @@ export function formatCurrency(amount, currency = 'KES') {
  */
 export function calculateDueDate(issueDate, paymentTerms = 30) {
   const due = new Date(issueDate);
-  due.setDate(due.getDate() + paymentTerms);
+  due.setDate(due.getDate() + Number(paymentTerms));
   return due;
 }
 
@@ -112,27 +123,30 @@ export function calculateDueDate(issueDate, paymentTerms = 30) {
  * Validate payment amount
  */
 export function validatePayment(amount, balance) {
-  if (amount <= 0) {
+  const payment = Number(amount);
+  const currentBalance = Number(balance);
+
+  if (isNaN(payment) || payment <= 0) {
     return {
       valid: false,
       error: "Payment amount must be greater than 0"
     };
   }
-  
-  if (amount > balance) {
+
+  if (payment > currentBalance) {
     return {
       valid: false,
-      error: `Payment amount (${formatCurrency(amount)}) exceeds balance (${formatCurrency(balance)})`
+      error: `Payment amount (${formatCurrency(payment)}) exceeds balance (${formatCurrency(currentBalance)})`
     };
   }
-  
+
   return { valid: true };
 }
 
 /**
  * Group bills by status
  */
-export function groupBillsByStatus(bills) {
+export function groupBillsByStatus(bills = []) {
   return bills.reduce((acc, bill) => {
     acc[bill.status] = (acc[bill.status] || 0) + 1;
     return acc;
@@ -140,20 +154,34 @@ export function groupBillsByStatus(bills) {
 }
 
 /**
- * Calculate revenue statistics
+ * Calculate revenue statistics (excludes DRAFT & VOID from totals)
  */
-export function calculateRevenueStats(bills) {
-  const total = bills.reduce((sum, bill) => sum + bill.total, 0);
-  const paid = bills
-    .filter(b => b.status === 'PAID')
-    .reduce((sum, bill) => sum + bill.total, 0);
-  const pending = bills
-    .filter(b => b.status === 'ISSUED' || b.status === 'PARTIALLY_PAID')
-    .reduce((sum, bill) => sum + (bill.total - bill.paid), 0);
-  const overdue = bills
-    .filter(b => (b.status === 'ISSUED' || b.status === 'PARTIALLY_PAID') && new Date(b.dueDate) < new Date())
-    .reduce((sum, bill) => sum + (bill.total - bill.paid), 0);
-  
+export function calculateRevenueStats(bills = []) {
+  const activeBills = bills.filter(b => !['DRAFT', 'VOID'].includes(b.status));
+
+  const total = round(activeBills.reduce((sum, bill) => sum + Number(bill.total || 0), 0));
+
+  const paid = round(
+    activeBills
+      .filter(b => b.status === 'PAID')
+      .reduce((sum, bill) => sum + Number(bill.total || 0), 0)
+  );
+
+  const pending = round(
+    activeBills
+      .filter(b => ['ISSUED', 'PARTIALLY_PAID'].includes(b.status))
+      .reduce((sum, bill) => sum + (Number(bill.total || 0) - Number(bill.paid || 0)), 0)
+  );
+
+  const overdue = round(
+    activeBills
+      .filter(b =>
+        ['ISSUED', 'PARTIALLY_PAID'].includes(b.status) &&
+        new Date(b.dueDate) < new Date()
+      )
+      .reduce((sum, bill) => sum + (Number(bill.total || 0) - Number(bill.paid || 0)), 0)
+  );
+
   return {
     total,
     paid,
@@ -188,15 +216,15 @@ export function generateInvoiceData(bill, hospital) {
     items: bill.items.map(item => ({
       description: item.description,
       quantity: item.quantity,
-      unitPrice: item.unitPrice,
-      amount: item.amount
+      unitPrice: round(item.unitPrice),
+      amount: round(item.amount)
     })),
-    subtotal: bill.subtotal,
-    discount: bill.discount,
-    tax: bill.tax,
-    total: bill.total,
-    paid: bill.paid,
-    balance: bill.balance,
+    subtotal: round(bill.subtotal),
+    discount: round(bill.discount),
+    tax: round(bill.tax),
+    total: round(bill.total),
+    paid: round(bill.paid || 0),
+    balance: round(bill.balance || 0),
     status: bill.status
   };
 }
@@ -205,43 +233,29 @@ export function generateInvoiceData(bill, hospital) {
  * Generate offline ID
  */
 export function generateOfflineId() {
-  return `offline_bill_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `offline_bill_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /**
  * Validate bill items
  */
 export function validateBillItems(items) {
-  if (!items || items.length === 0) {
-    return {
-      valid: false,
-      error: "Bill must have at least one item"
-    };
+  if (!Array.isArray(items) || items.length === 0) {
+    return { valid: false, error: "Bill must have at least one item" };
   }
-  
+
   for (const item of items) {
     if (!item.description) {
-      return {
-        valid: false,
-        error: "Item description is required"
-      };
+      return { valid: false, error: "Item description is required" };
     }
-    
     if (!item.quantity || item.quantity <= 0) {
-      return {
-        valid: false,
-        error: "Item quantity must be greater than 0"
-      };
+      return { valid: false, error: "Item quantity must be greater than 0" };
     }
-    
-    if (!item.unitPrice || item.unitPrice < 0) {
-      return {
-        valid: false,
-        error: "Item unit price must be a positive number"
-      };
+    if (item.unitPrice == null || item.unitPrice < 0) {
+      return { valid: false, error: "Item unit price must be a positive number" };
     }
   }
-  
+
   return { valid: true };
 }
 
@@ -249,17 +263,20 @@ export function validateBillItems(items) {
  * Calculate insurance coverage
  */
 export function calculateInsuranceCoverage(bill, insurancePolicy) {
-  if (!insurancePolicy) return { covered: 0, patientPays: bill.total };
-  
+  if (!insurancePolicy) return { covered: 0, patientPays: round(bill.total) };
+
   const coverage = insurancePolicy.coverageTerms || {};
+  const coverageRate = Number(coverage.coverageRate) || 0;
+  const maxAmount = coverage.maxAmount ?? Infinity;
+
   const coveredAmount = Math.min(
-    bill.total * (coverage.coverageRate || 0),
-    coverage.maxAmount || Infinity
+    round(bill.total * coverageRate),
+    maxAmount
   );
-  
+
   return {
-    covered: Math.round(coveredAmount),
-    patientPays: bill.total - Math.round(coveredAmount)
+    covered: round(coveredAmount),
+    patientPays: round(bill.total - coveredAmount)
   };
 }
 
@@ -268,10 +285,10 @@ export function calculateInsuranceCoverage(bill, insurancePolicy) {
  */
 export function parseClaimStatus(status) {
   const statusMap = {
-    'SUBMITTED': 'Submitted',
-    'APPROVED': 'Approved',
-    'REJECTED': 'Rejected',
-    'PAID': 'Paid'
+    SUBMITTED: 'Submitted',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+    PAID: 'Paid'
   };
   return statusMap[status] || status;
 }

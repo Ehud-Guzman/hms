@@ -3,6 +3,15 @@ import { useTheme } from '../../../context/ThemeContext'
 const DoctorCard = ({ doctor, onEdit, onDelete, onView }) => {
   const theme = useTheme()
 
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return '—'
+    return new Intl.NumberFormat('en-KE', {
+      style: 'currency',
+      currency: 'KES',
+      minimumFractionDigits: 0
+    }).format(amount)
+  }
+
   const styles = {
     card: {
       backgroundColor: 'white',
@@ -10,11 +19,7 @@ const DoctorCard = ({ doctor, onEdit, onDelete, onView }) => {
       border: `1px solid ${theme.colors.gray[200]}`,
       padding: theme.spacing[5],
       transition: `all ${theme.animation.duration.fast} ${theme.animation.easing.DEFAULT}`,
-      cursor: 'pointer',
-      ':hover': {
-        boxShadow: theme.shadows.md,
-        transform: 'translateY(-2px)'
-      }
+      cursor: 'pointer'
     },
     header: {
       display: 'flex',
@@ -86,33 +91,24 @@ const DoctorCard = ({ doctor, onEdit, onDelete, onView }) => {
     },
     viewButton: {
       backgroundColor: `${theme.colors.primary.DEFAULT}10`,
-      color: theme.colors.primary.DEFAULT,
-      ':hover': {
-        backgroundColor: `${theme.colors.primary.DEFAULT}20`
-      }
+      color: theme.colors.primary.DEFAULT
     },
     editButton: {
       backgroundColor: `${theme.colors.accent.DEFAULT}10`,
-      color: theme.colors.accent.DEFAULT,
-      ':hover': {
-        backgroundColor: `${theme.colors.accent.DEFAULT}20`
-      }
+      color: theme.colors.accent.DEFAULT
     },
     deleteButton: {
       backgroundColor: `${theme.colors.danger.DEFAULT}10`,
-      color: theme.colors.danger.DEFAULT,
-      ':hover': {
-        backgroundColor: `${theme.colors.danger.DEFAULT}20`
-      }
+      color: theme.colors.danger.DEFAULT
     }
   }
 
   return (
-    <div 
+    <div
       style={styles.card}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = theme.shadows.md
-        e.currentTarget.style.transform = 'translateY(-2px)'
+        e.currentTarget.style.transform = 'translateY(-3px)'
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.boxShadow = 'none'
@@ -120,38 +116,45 @@ const DoctorCard = ({ doctor, onEdit, onDelete, onView }) => {
       }}
     >
       <div style={styles.header}>
-        <div style={styles.avatar}>
-          👨‍⚕️
-        </div>
-        <div>
-          <div style={styles.license}>{doctor.licenseNo || 'No License'}</div>
+        <div style={styles.avatar}>👨‍⚕️</div>
+        <div style={styles.license}>
+          {doctor.licenseNo || 'No License'}
         </div>
       </div>
 
       <h3 style={styles.name}>
-        Dr. {doctor.firstName} {doctor.lastName}
+        Dr. {doctor.firstName || ''} {doctor.lastName || ''}
       </h3>
-      
-      <div style={styles.specialty}>{doctor.specialty || 'General Practice'}</div>
+
+      <div style={styles.specialty}>
+        {doctor.specialty || 'General Practice'}
+      </div>
 
       <div style={styles.details}>
         <div style={styles.detailItem}>
           <div style={styles.detailLabel}>Phone</div>
           <div style={styles.detailValue}>{doctor.phone || '—'}</div>
         </div>
+
         <div style={styles.detailItem}>
           <div style={styles.detailLabel}>Experience</div>
-          <div style={styles.detailValue}>{doctor.experience ? `${doctor.experience} years` : '—'}</div>
-        </div>
-        <div style={styles.detailItem}>
-          <div style={styles.detailLabel}>Fee</div>
           <div style={styles.detailValue}>
-            {doctor.consultationFee ? `KES ${doctor.consultationFee / 100}` : '—'}
+            {doctor.experience ? `${doctor.experience} years` : '—'}
           </div>
         </div>
+
+        <div style={styles.detailItem}>
+          <div style={styles.detailLabel}>Consultation Fee</div>
+          <div style={styles.detailValue}>
+            {formatCurrency(doctor.consultationFee)}
+          </div>
+        </div>
+
         <div style={styles.detailItem}>
           <div style={styles.detailLabel}>Email</div>
-          <div style={styles.detailValue}>{doctor.user?.email || '—'}</div>
+          <div style={styles.detailValue}>
+            {doctor.user?.email || '—'}
+          </div>
         </div>
       </div>
 
@@ -159,24 +162,20 @@ const DoctorCard = ({ doctor, onEdit, onDelete, onView }) => {
         <button
           style={{ ...styles.button, ...styles.viewButton }}
           onClick={() => onView(doctor)}
-          onMouseEnter={(e) => e.target.style.backgroundColor = `${theme.colors.primary.DEFAULT}20`}
-          onMouseLeave={(e) => e.target.style.backgroundColor = `${theme.colors.primary.DEFAULT}10`}
         >
           View
         </button>
+
         <button
           style={{ ...styles.button, ...styles.editButton }}
           onClick={() => onEdit(doctor)}
-          onMouseEnter={(e) => e.target.style.backgroundColor = `${theme.colors.accent.DEFAULT}20`}
-          onMouseLeave={(e) => e.target.style.backgroundColor = `${theme.colors.accent.DEFAULT}10`}
         >
           Edit
         </button>
+
         <button
           style={{ ...styles.button, ...styles.deleteButton }}
           onClick={() => onDelete(doctor.id)}
-          onMouseEnter={(e) => e.target.style.backgroundColor = `${theme.colors.danger.DEFAULT}20`}
-          onMouseLeave={(e) => e.target.style.backgroundColor = `${theme.colors.danger.DEFAULT}10`}
         >
           Delete
         </button>

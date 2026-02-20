@@ -1,5 +1,4 @@
 // backend/src/routes/modules/laboratory/laboratory.service.js
-
 import { prisma } from "../../../lib/prisma.js";
 import {
   generateOrderNumber,
@@ -12,136 +11,64 @@ import {
 export class LaboratoryService {
 
   // ==================== HELPER: CHECK ORDER ACCESS ====================
-
-  /**
-   * Check if the current user can access a given lab order.
-   * @param {Object} order - Must include doctorId, patientId, etc.
-   * @param {string} role - User role.
-   * @param {string} currentDoctorId - Current doctor ID (if user is a doctor).
-   * @param {string} currentUserId - Current user ID (for lab techs).
-   * @returns {boolean}
-   */
   static canAccessOrder(order, role, currentDoctorId, currentUserId) {
-    // Admins and lab technicians can access all orders
-    if (['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'].includes(role)) {
-      return true;
-    }
-    if (role === 'DOCTOR') {
-      // Doctors can access orders they requested
-      return order.doctorId === currentDoctorId;
-    }
-    // Other roles (NURSE, RECEPTIONIST) might have limited access; for now allow view only.
-    // If needed, restrict further.
-    return true;
+    if (['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'].includes(role)) return true;
+    if (role === 'DOCTOR') return order.doctorId === currentDoctorId;
+    return true; // Default read-only for others
+  }
+
+  static _validateId(id, name = 'ID') {
+    if (!id || typeof id !== 'string') throw { status: 400, message: `${name} is required and must be a string` };
+  }
+
+  static _validateRole(role, allowedRoles, action = 'perform this action') {
+    if (!allowedRoles.includes(role)) throw { status: 403, message: `Unauthorized to ${action}` };
   }
 
   // ==================== TEST CATALOG MANAGEMENT ====================
-
-  /**
-   * Create lab test
-   */
   static async createTest(data, hospitalId) {
-    const {
-      name,
-      code,
-      category,
-      description,
-      sampleType,
-      price,
-      isActive
-    } = data;
+    if (!data?.name) throw { status: 400, message: "Test name is required" };
 
-    // Check if code already exists
-    if (code) {
-      const existing = await prisma.labTest.findFirst({
-        where: {
-          hospitalId,
-          code
-        }
-      });
-
-      if (existing) {
-        throw new Error(`Test with code ${code} already exists`);
-      }
-    }
-
-    // Check if name already exists
-    const existingByName = await prisma.labTest.findFirst({
-      where: {
-        hospitalId,
-        name
-      }
-    });
-
-    if (existingByName) {
-      throw new Error(`Test with name ${name} already exists`);
-    }
+    const code = data.code || `TEST-${Date.now()}`;
+    const existing = await prisma.labTest.findFirst({ where: { hospitalId, OR: [{ code }, { name: data.name }] } });
+    if (existing) throw { status: 409, message: `Test with same name or code already exists` };
 
     return prisma.labTest.create({
       data: {
-        name,
-        code: code || `TEST-${Date.now()}`,
-        category,
-        description,
-        sampleType,
-        price: price ? parseInt(price) : null,
-        isActive: isActive !== false,
+        name: data.name,
+        code,
+        category: data.category || null,
+        description: data.description || null,
+        sampleType: data.sampleType || null,
+        price: data.price !== undefined ? parseInt(data.price) : null,
+        isActive: data.isActive !== false,
         hospitalId
       }
     });
   }
 
-  /**
-   * Update lab test
-   */
-  static async updateTest(id, hospitalId, data, role, userId) {
-    // role and userId passed for logging, but no extra checks needed (route already restricted)
-    const {
-      name,
-      category,
-      description,
-      sampleType,
-      price,
-      isActive
-    } = data;
+  static async updateTest(id, hospitalId, data) {
+    this._validateId(id, 'Test ID');
+
+    const test = await prisma.labTest.findFirst({ where: { id, hospitalId } });
+    if (!test) throw { status: 404, message: "Test not found" };
 
     return prisma.labTest.update({
-      where: {
-        id,
-        hospitalId
-      },
+      where: { id },
       data: {
-        name,
-        category,
-        description,
-        sampleType,
-        price: price ? parseInt(price) : undefined,
-        isActive
+        name: data.name ?? test.name,
+        category: data.category ?? test.category,
+        description: data.description ?? test.description,
+        sampleType: data.sampleType ?? test.sampleType,
+        price: data.price !== undefined ? parseInt(data.price) : test.price,
+        isActive: data.isActive !== undefined ? data.isActive : test.isActive
       }
     });
   }
 
-  /**
-   * List lab tests
-   */
-  static async listTests({
-    hospitalId,
-    role, // not used for filtering tests, but kept for consistency
-    userId,
-    search = '',
-    category = null,
-    isActive = true,
-    page = 1,
-    limit = 20,
-    sortBy = 'name',
-    sortOrder = 'asc'
-  }) {
+  static async listTests({ hospitalId, search = '', category = null, isActive = true, page = 1, limit = 20, sortBy = 'name', sortOrder = 'asc' }) {
     const skip = (page - 1) * limit;
-
-    const where = {
-      hospitalId,
-      isActive
-    };
+    const where = { hospitalId, isActive };
 
     if (search) {
       where.OR = [
@@ -151,318 +78,116 @@ export class LaboratoryService {
       ];
     }
 
-    if (category) {
-      where.category = category;
-    }
+    if (category) where.category = category;
 
     const total = await prisma.labTest.count({ where });
-
     const tests = await prisma.labTest.findMany({
       where,
       skip,
       take: limit,
-      orderBy: {
-        [sortBy]: sortOrder
-      },
-      include: {
-        _count: {
-          select: {
-            orders: true
-          }
-        }
-      }
+      orderBy: { [sortBy]: sortOrder },
+      include: { _count: { select: { orders: true } } }
     });
 
-    return {
-      tests,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    };
+    return { tests, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
   }
 
-  /**
-   * Get test categories
-   */
   static async getCategories(hospitalId) {
     const categories = await prisma.labTest.findMany({
-      where: {
-        hospitalId,
-        category: { not: null }
-      },
+      where: { hospitalId, category: { not: null } },
       distinct: ['category'],
-      select: {
-        category: true
-      }
+      select: { category: true }
     });
-
     return categories.map(c => c.category).filter(Boolean);
   }
 
-  /**
-   * Get test by ID
-   */
-  static async getTestById(id, hospitalId, role, userId) {
-    // role and userId passed for consistency, but test catalog is public within hospital
-    return prisma.labTest.findFirst({
-      where: {
-        id,
-        hospitalId
-      },
+  static async getTestById(id, hospitalId) {
+    this._validateId(id, 'Test ID');
+
+    const test = await prisma.labTest.findFirst({
+      where: { id, hospitalId },
       include: {
         orders: {
-          where: {
-            status: { notIn: ['CANCELLED'] }
-          },
-          orderBy: {
-            createdAt: 'desc'
-          },
+          where: { status: { notIn: ['CANCELLED'] } },
+          orderBy: { createdAt: 'desc' },
           take: 10,
           include: {
-            patient: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                uhid: true
-              }
-            },
-            doctor: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true
-              }
-            },
+            patient: { select: { id: true, firstName: true, lastName: true, uhid: true } },
+            doctor: { select: { id: true, firstName: true, lastName: true } },
             result: true
           }
         }
       }
     });
+
+    if (!test) throw { status: 404, message: "Test not found" };
+    return test;
   }
 
   // ==================== LAB ORDER MANAGEMENT ====================
+  static async createOrder(data, hospitalId, hospitalCode) {
+    this._validateId(data.testId, 'Test ID');
+    this._validateId(data.patientId, 'Patient ID');
 
-  /**
-   * Create lab order
-   */
-  static async createOrder(data, hospitalId, hospitalCode, userId, role, currentDoctorId) {
-    const {
-      patientId,
-      doctorId: requestDoctorId,
-      testId,
-      appointmentId,
-      priority,
-      clinicalNotes,
-      indication,
-      sampleType
-    } = data;
+    const test = await prisma.labTest.findFirst({ where: { id: data.testId, hospitalId } });
+    if (!test) throw { status: 404, message: "Test not found" };
 
-    // Get test details
-    const test = await prisma.labTest.findFirst({
-      where: {
-        id: testId,
-        hospitalId
-      }
-    });
-
-    if (!test) {
-      throw new Error("Test not found");
-    }
-
-    // Generate order number
     const orderNumber = generateOrderNumber(hospitalCode);
 
-    // Create order
-    const order = await prisma.labOrder.create({
+    return prisma.labOrder.create({
       data: {
         orderNumber,
-        patientId,
-        doctorId: requestDoctorId,
-        testId,
-        appointmentId,
+        patientId: data.patientId,
+        doctorId: data.doctorId,
+        testId: data.testId,
+        appointmentId: data.appointmentId || null,
         status: 'ORDERED',
-        priority: priority || 'ROUTINE',
-        clinicalNotes,
-        indication,
-        sampleType,
+        priority: data.priority || 'ROUTINE',
+        clinicalNotes: data.clinicalNotes || null,
+        indication: data.indication || null,
+        sampleType: data.sampleType || test.sampleType || null,
         hospitalId,
         price: test.price
       },
       include: {
-        patient: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            uhid: true,
-            dob: true,
-            gender: true
-          }
-        },
-        doctor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            specialty: true
-          }
-        },
-        test: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            category: true
-          }
-        }
+        patient: { select: { id: true, firstName: true, lastName: true, uhid: true, dob: true, gender: true } },
+        doctor: { select: { id: true, firstName: true, lastName: true, specialty: true } },
+        test: { select: { id: true, name: true, code: true, category: true } }
       }
     });
-
-    return order;
   }
 
-  /**
-   * Get order by ID (with RBAC)
-   */
   static async getOrderById(id, hospitalId, role, currentDoctorId, currentUserId) {
+    this._validateId(id, 'Order ID');
+
     const order = await prisma.labOrder.findFirst({
-      where: {
-        id,
-        hospitalId
-      },
+      where: { id, hospitalId },
       include: {
-        patient: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            uhid: true,
-            phone: true,
-            dob: true,
-            gender: true
-          }
-        },
-        doctor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            specialty: true
-          }
-        },
-        test: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            category: true,
-            description: true,
-            preparation: true,
-            referenceRanges: true,
-            parameters: true
-          }
-        },
-        appointment: {
-          select: {
-            id: true,
-            startTime: true,
-            status: true
-          }
-        },
-        technician: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        },
-        verifier: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        },
+        patient: { select: { id: true, firstName: true, lastName: true, uhid: true, dob: true, gender: true } },
+        doctor: { select: { id: true, firstName: true, lastName: true, specialty: true } },
+        test: { select: { id: true, name: true, code: true, category: true } },
         result: true
       }
     });
 
-    if (!order) return null;
-
-    // Apply access control
-    if (!this.canAccessOrder(order, role, currentDoctorId, currentUserId)) {
-      return null;
-    }
+    if (!order) throw { status: 404, message: "Order not found" };
+    if (!this.canAccessOrder(order, role, currentDoctorId, currentUserId)) throw { status: 403, message: "Access denied" };
 
     return order;
   }
 
-  /**
-   * Get order by order number (with RBAC)
-   */
-  static async getOrderByNumber(orderNumber, hospitalId, role, currentDoctorId, currentUserId) {
-    const order = await prisma.labOrder.findFirst({
-      where: {
-        orderNumber,
-        hospitalId
-      },
-      include: {
-        patient: true,
-        doctor: true,
-        test: true,
-        result: true
-      }
-    });
+  static async listOrders(params) {
+    const {
+      hospitalId, role, currentDoctorId, patientId, doctorId, testId,
+      status, priority, fromDate, toDate, search, page = 1, limit = 20, sortBy = 'createdAt', sortOrder = 'desc'
+    } = params;
 
-    if (!order) return null;
-
-    if (!this.canAccessOrder(order, role, currentDoctorId, currentUserId)) {
-      return null;
-    }
-
-    return order;
-  }
-
-  /**
-   * List lab orders (with RBAC)
-   */
-  static async listOrders({
-    hospitalId,
-    role,
-    currentDoctorId,
-    currentUserId,
-    patientId = null,
-    doctorId = null,
-    testId = null,
-    status = null,
-    priority = null,
-    fromDate = null,
-    toDate = null,
-    search = '',
-    page = 1,
-    limit = 20,
-    sortBy = 'createdAt',
-    sortOrder = 'desc'
-  }) {
     const skip = (page - 1) * limit;
+    const where = { hospitalId };
 
-    const where = {
-      hospitalId
-    };
-
-    // Role-based filtering
-    if (role === 'DOCTOR') {
-      // Doctors see only orders they requested
-      where.doctorId = currentDoctorId;
-    }
-    // LAB_TECHNICIAN and admins see all (no extra filter)
-
+    if (role === 'DOCTOR') where.doctorId = currentDoctorId;
     if (patientId) where.patientId = patientId;
-    if (doctorId) where.doctorId = doctorId; // overrides role filter if needed (admins can query any)
+    if (doctorId) where.doctorId = doctorId;
     if (testId) where.testId = testId;
     if (status) where.status = status;
     if (priority) where.priority = priority;
@@ -483,464 +208,150 @@ export class LaboratoryService {
     }
 
     const total = await prisma.labOrder.count({ where });
-
     const orders = await prisma.labOrder.findMany({
       where,
       skip,
       take: limit,
-      orderBy: {
-        [sortBy]: sortOrder
-      },
+      orderBy: { [sortBy]: sortOrder },
       include: {
-        patient: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            uhid: true,
-            dob: true,
-            gender: true
-          }
-        },
-        doctor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            specialty: true
-          }
-        },
-        test: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            category: true
-          }
-        },
-        result: {
-          select: {
-            id: true,
-            isAbnormal: true,
-            verifiedAt: true,
-            createdAt: true
-          }
-        },
-        technician: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        }
+        patient: { select: { id: true, firstName: true, lastName: true, uhid: true, dob: true, gender: true } },
+        doctor: { select: { id: true, firstName: true, lastName: true, specialty: true } },
+        test: { select: { id: true, name: true, code: true, category: true } },
+        result: { select: { id: true, isAbnormal: true, verifiedAt: true, createdAt: true } }
       }
     });
 
-    return {
-      orders,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit)
-      }
-    };
+    return { orders, pagination: { page, limit, total, pages: Math.ceil(total / limit) } };
   }
 
-  /**
-   * Update order status (lab_technician/admin only)
-   */
   static async updateOrderStatus(id, hospitalId, status, userId, role, data = {}) {
-    // First, fetch order to check if user has permission (though route already restricts)
-    const order = await prisma.labOrder.findFirst({
-      where: { id, hospitalId }
-    });
-    if (!order) {
-      throw new Error("Order not found");
-    }
+    this._validateId(id, 'Order ID');
+    this._validateRole(role, ['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'], 'update order status');
 
-    // Additional check: if a doctor somehow reaches here, they should not update status.
-    if (role === 'DOCTOR') {
-      throw new Error("Doctors cannot update order status");
-    }
+    const order = await prisma.labOrder.findFirst({ where: { id, hospitalId } });
+    if (!order) throw { status: 404, message: "Order not found" };
 
-    const updateData = {
-      status
-    };
+    const updateData = { status };
 
     if (status === 'COLLECTED') {
+      const test = await prisma.labTest.findUnique({ where: { id: order.testId } });
       updateData.collectedAt = new Date();
       updateData.collectedBy = userId;
-      updateData.sampleId = data.sampleId || generateSampleBarcode(
-        data.orderNumber || order.orderNumber,
-        data.testCode || (await prisma.labTest.findUnique({ where: { id: order.testId } }))?.code
-      );
-      updateData.sampleType = data.sampleType;
+      updateData.sampleId = data.sampleId || generateSampleBarcode(data.orderNumber || order.orderNumber, data.testCode || test?.code);
+      updateData.sampleType = data.sampleType || order.sampleType || test?.sampleType || null;
     }
 
-    if (status === 'PROCESSING') {
-      updateData.processedBy = userId; // using processedBy field if exists, or technicianId
-    }
+    if (status === 'PROCESSING') updateData.processedBy = userId;
+    if (status === 'COMPLETED') { updateData.completedAt = new Date(); updateData.completedBy = userId; }
+    if (status === 'CANCELLED' || status === 'REJECTED') updateData.notes = data.reason || null;
 
-    if (status === 'COMPLETED') {
-      updateData.completedAt = new Date();
-      updateData.completedBy = userId;
-    }
-
-    if (status === 'CANCELLED' || status === 'REJECTED') {
-      updateData.notes = data.reason;
-    }
-
-    return prisma.labOrder.update({
-      where: {
-        id,
-        hospitalId
-      },
-      data: updateData,
-      include: {
-        patient: true,
-        test: true
-      }
-    });
+    return prisma.labOrder.update({ where: { id }, data: updateData, include: { patient: true, test: true } });
   }
 
-  /**
-   * Get pending orders count by priority
-   */
-  static async getPendingCounts(hospitalId) {
-    const orders = await prisma.labOrder.groupBy({
-      by: ['priority'],
-      where: {
-        hospitalId,
-        status: {
-          in: ['ORDERED', 'COLLECTED', 'PROCESSING']
-        }
-      },
-      _count: true
-    });
-
-    const result = {
-      ROUTINE: 0,
-      URGENT: 0,
-      STAT: 0,
-      TOTAL: 0
-    };
-
-    orders.forEach(o => {
-      result[o.priority] = o._count;
-      result.TOTAL += o._count;
-    });
-
-    return result;
-  }
-
-  // ==================== RESULTS MANAGEMENT ====================
-
-  /**
-   * Enter results for order (lab_technician/admin only)
-   */
   static async enterResults(orderId, hospitalId, data, userId, role) {
-    const {
-      resultData,
-      reportFile,
-      notes,
-      verifiedBy,
-      verifiedAt
-    } = data;
-
-    // Check if user has permission (route already restricts, but we can add role check)
-    if (!['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'].includes(role)) {
-      throw new Error("Unauthorized to enter results");
-    }
+    this._validateId(orderId, 'Order ID');
+    this._validateRole(role, ['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'], 'enter results');
 
     return prisma.$transaction(async (tx) => {
-      // Get order with test and patient
-      const order = await tx.labOrder.findFirst({
-        where: {
-          id: orderId,
-          hospitalId
-        },
-        include: {
-          patient: true,
-          test: true
+      const order = await tx.labOrder.findFirst({ where: { id: orderId, hospitalId }, include: { patient: true, test: true, result: true } });
+      if (!order) throw { status: 404, message: "Order not found" };
+      if (order.result) throw { status: 409, message: "Order already has results" };
+
+      const resultDataJson = data.resultData ? (typeof data.resultData === 'string' ? JSON.parse(data.resultData) : data.resultData) : {};
+
+      const result = await tx.labResult.create({
+        data: {
+          orderId,
+          resultData: resultDataJson,
+          reportFile: data.reportFile || null,
+          notes: data.notes || null,
+          verifiedBy: data.verifiedBy || null,
+          verifiedAt: data.verifiedAt ? new Date(data.verifiedAt) : null
         }
       });
 
-      if (!order) {
-        throw new Error("Order not found");
-      }
-
-      if (order.status === 'COMPLETED') {
-        throw new Error("Order already has results");
-      }
-
-      // Create or update result
-      let result;
-
-      const resultDataJson = resultData ?
-        (typeof resultData === 'string' ? JSON.parse(resultData) : resultData) : {};
-
-      if (order.result) {
-        // Update existing result
-        result = await tx.labResult.update({
-          where: { orderId },
-          data: {
-            resultData: resultDataJson,
-            reportFile,
-            notes,
-            verifiedBy,
-            verifiedAt: verifiedAt ? new Date(verifiedAt) : null
-          }
-        });
-      } else {
-        // Create new result
-        result = await tx.labResult.create({
-          data: {
-            orderId,
-            resultData: resultDataJson,
-            reportFile,
-            notes,
-            verifiedBy,
-            verifiedAt: verifiedAt ? new Date(verifiedAt) : null
-          }
-        });
-      }
-
-      // Update order status
       const updatedOrder = await tx.labOrder.update({
         where: { id: orderId },
         data: {
           status: 'COMPLETED',
           completedAt: new Date(),
           completedBy: userId,
-          verifiedAt: verifiedAt ? new Date(verifiedAt) : null,
-          verifiedBy
+          verifiedBy: data.verifiedBy || null,
+          verifiedAt: data.verifiedAt ? new Date(data.verifiedAt) : null
         }
       });
 
-      return {
-        order: updatedOrder,
-        result
-      };
+      return { order: updatedOrder, result };
     });
   }
 
-  /**
-   * Verify results (lab_technician/admin only)
-   */
   static async verifyResults(orderId, hospitalId, userId, role) {
-    if (!['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'].includes(role)) {
-      throw new Error("Unauthorized to verify results");
-    }
+    this._validateId(orderId, 'Order ID');
+    this._validateRole(role, ['SYSTEM_ADMIN', 'HOSPITAL_ADMIN', 'LAB_TECHNICIAN'], 'verify results');
 
     return prisma.$transaction(async (tx) => {
-      const order = await tx.labOrder.findFirst({
-        where: {
-          id: orderId,
-          hospitalId
-        },
-        include: {
-          result: true
-        }
-      });
+      const order = await tx.labOrder.findFirst({ where: { id: orderId, hospitalId }, include: { result: true } });
+      if (!order) throw { status: 404, message: "Order not found" };
+      if (!order.result) throw { status: 400, message: "No results to verify" };
 
-      if (!order) {
-        throw new Error("Order not found");
-      }
-
-      if (!order.result) {
-        throw new Error("No results to verify");
-      }
-
-      // Update result
-      await tx.labResult.update({
-        where: { orderId },
-        data: {
-          verifiedBy: userId,
-          verifiedAt: new Date()
-        }
-      });
-
-      // Update order
-      const updated = await tx.labOrder.update({
-        where: { id: orderId },
-        data: {
-          verifiedBy: userId,
-          verifiedAt: new Date()
-        }
-      });
-
+      await tx.labResult.update({ where: { orderId }, data: { verifiedBy: userId, verifiedAt: new Date() } });
+      const updated = await tx.labOrder.update({ where: { id: orderId }, data: { verifiedBy: userId, verifiedAt: new Date() } });
       return updated;
     });
   }
 
-  /**
-   * Get patient lab history (with RBAC)
-   */
   static async getPatientLabHistory(patientId, hospitalId, role, currentDoctorId, limit = 20) {
-    const where = {
-      patientId,
-      hospitalId,
-      status: 'COMPLETED'
-    };
-
-    // If doctor, ensure they have access to this patient's orders (i.e., they requested them)
-    if (role === 'DOCTOR') {
-      where.doctorId = currentDoctorId;
-    }
+    this._validateId(patientId, 'Patient ID');
+    const where = { patientId, hospitalId, status: 'COMPLETED' };
+    if (role === 'DOCTOR') where.doctorId = currentDoctorId;
 
     return prisma.labOrder.findMany({
       where,
-      orderBy: {
-        completedAt: 'desc'
-      },
+      orderBy: { completedAt: 'desc' },
       take: limit,
       include: {
-        test: {
-          select: {
-            id: true,
-            name: true,
-            code: true,
-            category: true
-          }
-        },
-        doctor: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true
-          }
-        },
+        test: { select: { id: true, name: true, code: true, category: true } },
+        doctor: { select: { id: true, firstName: true, lastName: true } },
         result: true
       }
     });
   }
 
-  /**
-   * Get laboratory statistics (admin only)
-   */
-  static async getLabStats(hospitalId, role) {
-    // role is passed for logging, but stats are only for admins (already in route)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [
-      totalOrders,
-      pendingOrders,
-      completedToday,
-      byStatus,
-      byPriority,
-      averageTAT
-    ] = await Promise.all([
-      // Total orders
-      prisma.labOrder.count({ where: { hospitalId } }),
-
-      // Pending orders
-      prisma.labOrder.count({
-        where: {
-          hospitalId,
-          status: { in: ['ORDERED', 'COLLECTED', 'PROCESSING'] }
-        }
-      }),
-
-      // Completed today
-      prisma.labOrder.count({
-        where: {
-          hospitalId,
-          status: 'COMPLETED',
-          completedAt: { gte: today }
-        }
-      }),
-
-      // By status
-      prisma.labOrder.groupBy({
-        by: ['status'],
-        where: { hospitalId },
-        _count: true
-      }),
-
-      // By priority
-      prisma.labOrder.groupBy({
-        by: ['priority'],
-        where: { hospitalId },
-        _count: true
-      }),
-
-      // Average turnaround time (completed orders only)
-      prisma.labOrder.aggregate({
-        where: {
-          hospitalId,
-          status: 'COMPLETED',
-          completedAt: { not: null },
-          createdAt: { not: null }
-        },
-        _avg: {
-          completedAt: true,
-          createdAt: true
-        }
-      })
-    ]);
-
-    // Calculate average TAT in minutes
-    let avgTAT = null;
-    if (averageTAT._avg.completedAt && averageTAT._avg.createdAt) {
-      const avgTime = (new Date(averageTAT._avg.completedAt) - new Date(averageTAT._avg.createdAt)) / 60000;
-      avgTAT = Math.round(avgTime);
-    }
-
-    return {
-      totalOrders,
-      pendingOrders,
-      completedToday,
-      byStatus,
-      byPriority,
-      averageTAT: avgTAT
-    };
-  }
-
-  /**
-   * Sync offline data (with RBAC)
-   */
   static async syncOffline(data, hospitalId, userId, role, currentDoctorId) {
     const results = [];
-
     for (const item of data) {
       try {
         if (item.type === 'order') {
-          const hospital = await prisma.hospital.findUnique({
-            where: { id: hospitalId }
-          });
-
-          const order = await this.createOrder(
-            item.data,
-            hospitalId,
-            hospital.code,
-            userId,
-            role,
-            currentDoctorId
-          );
+          const hospital = await prisma.hospital.findUnique({ where: { id: hospitalId } });
+          const order = await this.createOrder(item.data, hospitalId, hospital.code);
           results.push({ ...order, syncStatus: 'SYNCED' });
         }
-
         if (item.type === 'result') {
-          const result = await this.enterResults(
-            item.data.orderId,
-            hospitalId,
-            item.data,
-            userId,
-            role
-          );
+          const result = await this.enterResults(item.data.orderId, hospitalId, item.data, userId, role);
           results.push({ ...result, syncStatus: 'SYNCED' });
         }
       } catch (error) {
-        results.push({
-          offlineId: item.offlineId,
-          error: error.message,
-          syncStatus: 'FAILED'
-        });
+        results.push({ offlineId: item.offlineId, error: error.message, syncStatus: 'FAILED' });
       }
     }
-
     return results;
   }
+
+  // ==================== LAB DASHBOARD / STATS ====================
+  static async getLabStats(hospitalId) {
+    const orders = await prisma.labOrder.findMany({
+      where: { hospitalId },
+      select: { status: true, priority: true }
+    });
+
+    const stats = { total: orders.length, byStatus: {}, byPriority: {} };
+
+    orders.forEach(order => {
+      stats.byStatus[order.status] = (stats.byStatus[order.status] || 0) + 1;
+      stats.byPriority[order.priority] = (stats.byPriority[order.priority] || 0) + 1;
+    });
+
+    return stats;
+  }
+
 }
