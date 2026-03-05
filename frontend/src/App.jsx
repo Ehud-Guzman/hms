@@ -4,6 +4,8 @@ import { AuthProvider } from "./core/context/AuthContext";
 import ProtectedRoute from "./core/components/common/ProtectedRoute";
 import SyncIndicator from "./components/SyncIndicator";
 
+import { PrintProvider } from './components/print/PrintContext';
+
 // ==============================
 // AUTH MODULES
 // ==============================
@@ -226,6 +228,7 @@ const ROUTES = [
 // ==============================
 export default function App() {
   return (
+    <PrintProvider>
     <ThemeProvider>
       <AuthProvider>
         <BrowserRouter>
@@ -250,5 +253,6 @@ export default function App() {
         </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
+    </PrintProvider>
   );
 }
